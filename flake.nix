@@ -14,7 +14,12 @@
     in
     flake-utils.lib.eachSystem supportedSystems (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        pkgs = import nixpkgs {
+          inherit system;
+          config = {
+            allowUnfree = true;
+          };
+        };
       in
       rec {
         packages.circle = pkgs.callPackage ./circle.nix { };
