@@ -22,7 +22,10 @@
         };
       in
       rec {
-        packages.circle = pkgs.callPackage ./circle.nix { };
+        packages.circle-unwrapped = pkgs.callPackage ./circle.nix { };
+        packages.circle = pkgs.wrapCCWith {
+          cc = packages.circle-unwrapped;
+        };
         defaultPackage = packages.circle;
       });
 }

@@ -1,10 +1,15 @@
 let
-  pkgs = import <nixpkgs> { };
-  circle-unwrapped = pkgs.callPackage ./circle.nix { };
-  circleStdenv = pkgs.overrideCC pkgs.stdenv { cc = circle-unwrapped; };
+  f = builtins.getFlake (toString ./.);
+  pkgs = import f.inputs.nixpkgs {
+    config = {
+      allowUnfree = true;
+    };
+  };
+  circle = f.outputs.packages."x86_64-linux".circle;
+  circleStdenv = pkgs.overrideCC pkgs.stdenv circle;
 
-  sanityFile = ./sanity.cxx;
+  sanityFile = ./tuple.cxx;
 in
 pkgs.runCommandWith { stdenv = circleStdenv; name = "circle-test"; runLocal = true; } ''
-  cc ./sanity.cxx
+  circle ${sanityFile} -o $out
 ''
