@@ -65,6 +65,7 @@ stdenv.mkDerivation rec {
       --isystem=${stdenv.cc.cc}/lib/gcc/${stdenv.buildPlatform.config}/${stdenv.cc.cc.version}/include-fixed
       --isystem=${stdenv.cc.cc.libc_dev}/include
       -L ${stdenv.cc.cc}/lib/gcc/${stdenv.buildPlatform.config}/${stdenv.cc.cc.version}
+      -L ${stdenv.cc.cc.lib.lib}/lib
       -L ${stdenv.cc.libc_dev.out}/lib
       #-Wl,--dynamic-linker=${stdenv.cc.libc_dev.out}/lib/ld-linux-x86-64.so.2
       #--gcc-toolchain=${stdenv.cc.cc.lib.out}
@@ -81,8 +82,14 @@ stdenv.mkDerivation rec {
       --replace "${placeholder "out"}/bin/.circle-real" "./circle" \
       --replace "${placeholder "out"}/lib/redirect.so" "$(realpath ./redirect.so)"
 
+    # Try compiling provided sanity check
     ./wrappedCircle --verbose sanity.cxx
     ./sanity
+
+    # Test C++ features/libstdc++ linkage
+    cp ${./tuple.cxx} tuple.cxx
+    ./wrappedCircle --verbose tuple.cxx
+    ./tuple
   '';
 
   doCheck = true;
