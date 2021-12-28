@@ -5,8 +5,7 @@
 , zlib
 , elfutils
 , libuuid
-, binutils
-, makeWrapper
+, runtimeShell
 }:
 
 stdenv.mkDerivation rec {
@@ -24,25 +23,40 @@ stdenv.mkDerivation rec {
 
   nativeBuildInputs = [
     autoPatchelfHook
-    makeWrapper
   ];
 
   dontAutoPatchelf = true;
   dontStrip = true;
-  dontBuild = true;
   dontConfigure = true;
 
-  patchPhase = ''
+  prePatch = ''
     autoPatchelf circle
   '';
 
-  installPhase = ''
-    install -D -m 755 circle $out/bin/circle
-    install -D -m 644 license.txt $out/share/$name/LICENSE
+  buildPhase = ''
+    runHook preBuild
+
+    cp ${./redirect.c} redirect.c
+    cc -DNDEBUG -D_LD='"ld"' -D_LDSO='"${stdenv.cc.libc_dev.out}/lib/ld-linux-x86-64.so.2"' -shared -fPIC -ldl -o redirect.so redirect.c
+
+    runHook postBuild
   '';
 
-  checkPhase = ''
-    set -x
+  installPhase = ''
+    runHook preInstall
+
+    install -D -m 755 redirect.so $out/lib/redirect.so
+    install -D -m 755 circle $out/bin/.circle-real
+    install -D -m 755 $wrappedCirclePath $out/bin/circle
+    install -D -m 644 license.txt $out/share/$name/LICENSE
+
+    runHook postInstall
+  '';
+
+  passAsFile = [ "wrappedCircle" ];
+
+  wrappedCircle = ''
+    #!${runtimeShell}
 
     circleFlags=(
       --isystem=${stdenv.cc.cc}/include/c++/${stdenv.cc.cc.version}
@@ -56,7 +70,18 @@ stdenv.mkDerivation rec {
       #--gcc-toolchain=${stdenv.cc.cc.lib.out}
     )
 
-    ./circle --verbose ''${circleFlags[@]} sanity.cxx
+    export LD_PRELOAD="${placeholder "out"}/lib/redirect.so"
+    exec ${placeholder "out"}/bin/.circle-real ''${circleFlags[@]} "''${@}"
+  '';
+
+  checkPhase = ''
+    # XXX: ugly
+    install -m 755 $wrappedCirclePath wrappedCircle
+    substituteInPlace wrappedCircle \
+      --replace "${placeholder "out"}/bin/.circle-real" "./circle" \
+      --replace "${placeholder "out"}/lib/redirect.so" "$(realpath ./redirect.so)"
+
+    ./wrappedCircle --verbose sanity.cxx
     ./sanity
   '';
 
